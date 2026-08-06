@@ -396,6 +396,7 @@ async def main() -> None:
                             args.proxy_url,
                             additional_headers={"Authorization": f"Bearer {token}"},
                             open_timeout=20,
+                            ping_timeout=60,
                             max_size=16 * 1024 * 1024,
                             compression=None,
                         )
@@ -409,18 +410,34 @@ async def main() -> None:
                         )
                     )
 
-            await asyncio.gather(
-                *(websocket.send(setup_message()) for _, websocket in connections)
+            setup_send_results = await asyncio.gather(
+                *(websocket.send(setup_message()) for _, websocket in connections),
+                return_exceptions=True,
             )
+            setup_connections = []
+            for connection, send_result in zip(connections, setup_send_results):
+                if isinstance(send_result, BaseException):
+                    responses.append(
+                        AssistantResponse(
+                            assistant_id=connection[0],
+                            error=(
+                                "setup send: "
+                                f"{type(send_result).__name__}: {send_result}"
+                            ),
+                        )
+                    )
+                else:
+                    setup_connections.append(connection)
+
             setup_results = await asyncio.gather(
                 *(
                     asyncio.wait_for(websocket.recv(), timeout=20)
-                    for _, websocket in connections
+                    for _, websocket in setup_connections
                 ),
                 return_exceptions=True,
             )
             ready = []
-            for connection, setup_result in zip(connections, setup_results):
+            for connection, setup_result in zip(setup_connections, setup_results):
                 setup_valid = False
                 if not isinstance(setup_result, BaseException):
                     try:
@@ -446,8 +463,8 @@ async def main() -> None:
                 wait_seconds=args.wait_seconds,
                 max_speech_seconds=args.max_speech_seconds,
             )
-            receivers = [
-                asyncio.create_task(
+            receivers = {
+                client_id: asyncio.create_task(
                     receive_response(
                         client_id,
                         websocket,
@@ -456,16 +473,43 @@ async def main() -> None:
                     )
                 )
                 for client_id, websocket in ready
-            ]
+            }
             print("Aynı konuşma tüm asistanlara gönderiliyor...")
-            await asyncio.gather(
+            send_results = await asyncio.gather(
                 *(
                     send_recording(websocket, recording, args.send_speed)
                     for _, websocket in ready
-                )
+                ),
+                return_exceptions=True,
+            )
+            failed_sends: set[int] = set()
+            for (client_id, _), send_result in zip(ready, send_results):
+                if isinstance(send_result, BaseException):
+                    failed_sends.add(client_id)
+                    receiver = receivers[client_id]
+                    receiver.cancel()
+                    responses.append(
+                        AssistantResponse(
+                            assistant_id=client_id,
+                            error=(
+                                "audio send: "
+                                f"{type(send_result).__name__}: {send_result}"
+                            ),
+                        )
+                    )
+
+            await asyncio.gather(
+                *(receivers[client_id] for client_id in failed_sends),
+                return_exceptions=True,
             )
             print("Cevaplar bekleniyor...")
-            received = await asyncio.gather(*receivers)
+            received = await asyncio.gather(
+                *(
+                    receiver
+                    for client_id, receiver in receivers.items()
+                    if client_id not in failed_sends
+                )
+            )
             responses.extend(received)
     finally:
         stop_monitor.set()

@@ -55,7 +55,7 @@ class Settings:
     subscription_verify_timeout_seconds: float = 10.0
     upstream_open_timeout_seconds: float = 15.0
     upstream_ping_interval_seconds: float = 20.0
-    upstream_ping_timeout_seconds: float = 20.0
+    upstream_ping_timeout_seconds: float = 60.0
     max_message_bytes: int | None = 16 * 1024 * 1024
 
     @classmethod
@@ -82,7 +82,7 @@ class Settings:
                 os.getenv("UPSTREAM_PING_INTERVAL_SECONDS", "20")
             ),
             upstream_ping_timeout_seconds=float(
-                os.getenv("UPSTREAM_PING_TIMEOUT_SECONDS", "20")
+                os.getenv("UPSTREAM_PING_TIMEOUT_SECONDS", "60")
             ),
             max_message_bytes=_optional_int(
                 "MAX_MESSAGE_BYTES", 16 * 1024 * 1024

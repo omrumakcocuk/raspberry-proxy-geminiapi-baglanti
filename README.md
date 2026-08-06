@@ -132,7 +132,7 @@ JSON içindeki base64 alanlarıyla gönderilir.
 | `MAX_MESSAGE_BYTES` | `16777216` | Tek WebSocket mesajı üst sınırı |
 | `UPSTREAM_OPEN_TIMEOUT_SECONDS` | `15` | Gemini bağlantı zaman aşımı |
 | `UPSTREAM_PING_INTERVAL_SECONDS` | `20` | Ping aralığı |
-| `UPSTREAM_PING_TIMEOUT_SECONDS` | `20` | Ping cevap zaman aşımı |
+| `UPSTREAM_PING_TIMEOUT_SECONDS` | `60` | Ping cevap zaman aşımı |
 | `LOG_LEVEL` | `INFO` | Log seviyesi |
 
 Desteklenen upstream kimlik doğrulama modları:
