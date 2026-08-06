@@ -20,7 +20,7 @@ from websockets.asyncio.client import ClientConnection, connect
 from load_test import find_proxy_pid, process_sample
 
 
-MODEL = "models/gemini-3.1-flash-live-preview"
+MODEL = "models/gemini-2.5-flash-native-audio-latest"
 MIC_CHUNK_BYTES = 1280  # 40 ms, 16 kHz, mono, signed 16-bit PCM.
 
 load_dotenv(".orbit-token.env", override=True)

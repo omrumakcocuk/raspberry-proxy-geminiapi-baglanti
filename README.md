@@ -93,7 +93,7 @@ alternatifi de vardır; bunu üretimde yalnızca WSS ile kullanın. İlk mesaj G
 ```json
 {
   "setup": {
-    "model": "models/gemini-3.1-flash-live-preview",
+    "model": "models/gemini-2.5-flash-native-audio-latest",
     "generationConfig": {
       "responseModalities": ["AUDIO"]
     }
