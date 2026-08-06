@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from websockets.asyncio.client import connect
 
 
-MODEL = "models/gemini-2.5-flash-native-audio-latest"
+MODEL = "models/gemini-3.1-flash-live-preview"
 
 load_dotenv(".orbit-token.env", override=True)
 

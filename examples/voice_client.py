@@ -18,7 +18,7 @@ from websockets.exceptions import ConnectionClosed
 load_dotenv(".orbit-token.env", override=True)
 
 PROXY_URL = os.environ.get("PROXY_URL", "ws://127.0.0.1:8000/ws/live")
-MODEL = "models/gemini-2.5-flash-native-audio-latest"
+MODEL = "models/gemini-3.1-flash-live-preview"
 MIC_CHUNK_BYTES = 1280  # 40 ms of mono, signed 16-bit, 16 kHz PCM.
 AUDIO_OUTPUT_DEVICE = os.environ.get("AUDIO_OUTPUT_DEVICE", "pipewire")
 TURKISH_INSTRUCTION = (
