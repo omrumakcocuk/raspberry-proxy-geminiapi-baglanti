@@ -193,7 +193,9 @@ async def main() -> None:
     parser.add_argument("--ramp-ms", type=float, default=200)
     parser.add_argument(
         "--proxy-url",
-        default=os.environ.get("PROXY_URL", "ws://127.0.0.1:8000/ws/live"),
+        default=os.environ.get(
+            "PROXY_URL", "ws://server.orbitkidslab.com:8001/ws/live"
+        ),
     )
     parser.add_argument("--proxy-pid", type=int)
     parser.add_argument(

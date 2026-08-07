@@ -45,7 +45,9 @@ async def main() -> None:
     if not orbit_token:
         raise SystemExit("ORBIT_USER_TOKEN ortam değişkeni gerekli")
     async with connect(
-        os.environ.get("PROXY_URL", "ws://127.0.0.1:8000/ws/live"),
+        os.environ.get(
+            "PROXY_URL", "ws://server.orbitkidslab.com:8001/ws/live"
+        ),
         additional_headers={"Authorization": f"Bearer {orbit_token}"},
     ) as websocket:
         await websocket.send(
