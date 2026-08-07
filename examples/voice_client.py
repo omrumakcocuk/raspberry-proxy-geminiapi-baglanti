@@ -19,7 +19,7 @@ from websockets.exceptions import ConnectionClosed
 load_dotenv(".orbit-token.env", override=True)
 
 PROXY_URL = os.environ.get(
-    "PROXY_URL", "ws://server.orbitkidslab.com:8001/ws/live"
+    "PROXY_URL", "wss://realtime.orbitkidslab.com/ws/live"
 )
 MODEL = "models/gemini-3.1-flash-live-preview"
 MIC_CHUNK_BYTES = 1280  # 40 ms of mono, signed 16-bit, 16 kHz PCM.

@@ -360,7 +360,7 @@ async def main() -> None:
     parser.add_argument(
         "--proxy-url",
         default=os.environ.get(
-            "PROXY_URL", "ws://server.orbitkidslab.com:8001/ws/live"
+            "PROXY_URL", "wss://realtime.orbitkidslab.com/ws/live"
         ),
     )
     parser.add_argument(
