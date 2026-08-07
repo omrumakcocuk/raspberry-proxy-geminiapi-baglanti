@@ -15,6 +15,7 @@ import statistics
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from websockets.asyncio.client import connect
@@ -25,7 +26,7 @@ MODEL = "models/gemini-3.1-flash-live-preview"
 load_dotenv(".orbit-token.env", override=True)
 
 
-@dataclass(slots=True)
+@dataclass
 class Stats:
     active: int = 0
     connected: int = 0
@@ -34,10 +35,10 @@ class Stats:
     received_bytes: int = 0
     sent_messages: int = 0
     sent_bytes: int = 0
-    connection_times_ms: list[float] = field(default_factory=list)
+    connection_times_ms: List[float] = field(default_factory=list)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ProcessSample:
     cpu_seconds: float
     rss_bytes: int
@@ -54,7 +55,7 @@ def process_sample(pid: int) -> ProcessSample:
     return ProcessSample(cpu_seconds=cpu_seconds, rss_bytes=rss_bytes)
 
 
-def find_proxy_pid() -> int | None:
+def find_proxy_pid() -> Optional[int]:
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
@@ -91,7 +92,7 @@ async def run_client(
     proxy_url: str,
     token: str,
     deadline: float,
-    prompt: str | None,
+    prompt: Optional[str],
     audio: bool,
     stats: Stats,
 ) -> None:
@@ -155,9 +156,9 @@ async def run_client(
 
 
 async def report(
-    stats: Stats, deadline: float, proxy_pid: int | None
+    stats: Stats, deadline: float, proxy_pid: Optional[int]
 ) -> None:
-    previous_sample: ProcessSample | None = None
+    previous_sample: Optional[ProcessSample] = None
     previous_time = time.monotonic()
     while time.monotonic() < deadline:
         await asyncio.sleep(1)

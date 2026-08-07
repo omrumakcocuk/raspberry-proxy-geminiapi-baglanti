@@ -13,6 +13,7 @@ from array import array
 from collections import deque
 from contextlib import AsyncExitStack, suppress
 from dataclasses import dataclass, field
+from typing import Deque, Dict, List, Optional, Set
 
 from dotenv import load_dotenv
 from websockets.asyncio.client import ClientConnection, connect
@@ -26,12 +27,12 @@ MIC_CHUNK_BYTES = 1280  # 40 ms, 16 kHz, mono, signed 16-bit PCM.
 load_dotenv(".orbit-token.env", override=True)
 
 
-@dataclass(slots=True)
+@dataclass
 class AssistantResponse:
     assistant_id: int
-    transcript: list[str] = field(default_factory=list)
+    transcript: List[str] = field(default_factory=list)
     audio: bytearray = field(default_factory=bytearray)
-    error: str | None = None
+    error: Optional[str] = None
 
 
 class SharedAudioMixer:
@@ -40,11 +41,11 @@ class SharedAudioMixer:
     PERIOD_BYTES = 960  # 20 ms at 24 kHz, mono, signed 16-bit PCM.
 
     def __init__(self) -> None:
-        self.buffers: dict[int, bytearray] = {}
-        self.announced: set[int] = set()
+        self.buffers: Dict[int, bytearray] = {}
+        self.announced: Set[int] = set()
         self.event = asyncio.Event()
         self.closing = False
-        self.process: asyncio.subprocess.Process | None = None
+        self.process: Optional[asyncio.subprocess.Process] = None
         self.task = asyncio.create_task(self._run())
 
     def submit(self, assistant_id: int, audio: bytes) -> None:
@@ -71,9 +72,9 @@ class SharedAudioMixer:
             stdin=asyncio.subprocess.PIPE,
         )
 
-    def _mixed_period(self) -> bytes | None:
-        source_periods: list[array] = []
-        empty_ids: list[int] = []
+    def _mixed_period(self) -> Optional[bytes]:
+        source_periods: List[array] = []
+        empty_ids: List[int] = []
         for assistant_id, buffer in self.buffers.items():
             if not buffer:
                 empty_ids.append(assistant_id)
@@ -201,7 +202,7 @@ async def record_one_sentence(
         stderr=asyncio.subprocess.DEVNULL,
     )
     assert process.stdout is not None
-    pre_roll: deque[bytes] = deque(maxlen=5)
+    pre_roll: Deque[bytes] = deque(maxlen=5)
     recording = bytearray()
     speech_started = False
     loud_chunks = 0
@@ -288,7 +289,7 @@ async def receive_response(
     assistant_id: int,
     websocket: ClientConnection,
     timeout: float,
-    mixer: SharedAudioMixer | None,
+    mixer: Optional[SharedAudioMixer],
 ) -> AssistantResponse:
     result = AssistantResponse(assistant_id=assistant_id)
     deadline = time.monotonic() + timeout
@@ -318,7 +319,7 @@ async def receive_response(
     return result
 
 
-async def monitor_proxy(pid: int | None, stop: asyncio.Event) -> None:
+async def monitor_proxy(pid: Optional[int], stop: asyncio.Event) -> None:
     if pid is None:
         print("Proxy PID bulunamadı; CPU/RAM ölçümü gösterilmeyecek.")
         return
@@ -383,7 +384,7 @@ async def main() -> None:
     stop_monitor = asyncio.Event()
     monitor = asyncio.create_task(monitor_proxy(find_proxy_pid(), stop_monitor))
     mixer = None if args.no_play else SharedAudioMixer()
-    responses: list[AssistantResponse] = []
+    responses: List[AssistantResponse] = []
 
     try:
         async with AsyncExitStack() as stack:
@@ -482,7 +483,7 @@ async def main() -> None:
                 ),
                 return_exceptions=True,
             )
-            failed_sends: set[int] = set()
+            failed_sends: Set[int] = set()
             for (client_id, _), send_result in zip(ready, send_results):
                 if isinstance(send_result, BaseException):
                     failed_sends.add(client_id)

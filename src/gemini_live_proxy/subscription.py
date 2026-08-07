@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -14,12 +14,12 @@ class SubscriptionServiceUnavailable(RuntimeError):
     """Raised when Orbit cannot provide a trustworthy verification result."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class SubscriptionVerification:
     authorized: bool
 
 
-def _explicit_boolean_result(payload: Any) -> bool | None:
+def _explicit_boolean_result(payload: Any) -> Optional[bool]:
     """Read common verification fields without depending on one response wrapper."""
     if not isinstance(payload, dict):
         return None
@@ -87,4 +87,5 @@ def _verify_sync(token: str, settings: Settings) -> SubscriptionVerification:
 async def verify_subscription(
     token: str, settings: Settings
 ) -> SubscriptionVerification:
-    return await asyncio.to_thread(_verify_sync, token, settings)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _verify_sync, token, settings)

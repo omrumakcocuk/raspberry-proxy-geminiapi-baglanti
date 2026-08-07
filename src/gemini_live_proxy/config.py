@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
@@ -31,7 +32,7 @@ def _env_bool(name: str, default: bool) -> bool:
     raise ValueError(f"{name} must be true or false")
 
 
-def _optional_int(name: str, default: int | None) -> int | None:
+def _optional_int(name: str, default: Optional[int]) -> Optional[int]:
     value = os.getenv(name)
     if value is None or value.strip() == "":
         return default
@@ -41,11 +42,11 @@ def _optional_int(name: str, default: int | None) -> int | None:
     return parsed
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Settings:
     gemini_ws_url: str = DEFAULT_GEMINI_WS_URL
-    gemini_api_key: str | None = None
-    gemini_access_token: str | None = None
+    gemini_api_key: Optional[str] = None
+    gemini_access_token: Optional[str] = None
     gemini_auth_mode: str = "api_key_query"
     host: str = "127.0.0.1"
     port: int = 8000
@@ -56,7 +57,7 @@ class Settings:
     upstream_open_timeout_seconds: float = 15.0
     upstream_ping_interval_seconds: float = 20.0
     upstream_ping_timeout_seconds: float = 60.0
-    max_message_bytes: int | None = 16 * 1024 * 1024
+    max_message_bytes: Optional[int] = 16 * 1024 * 1024
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -117,10 +118,10 @@ class Settings:
         if parsed.scheme not in {"ws", "wss"} or not parsed.netloc:
             raise ValueError("GEMINI_WS_URL must be a valid ws:// or wss:// URL")
 
-    def upstream_connection(self) -> tuple[str, dict[str, str]]:
+    def upstream_connection(self) -> Tuple[str, Dict[str, str]]:
         """Return the authenticated URL and headers without exposing them to logs."""
         self.validate()
-        headers: dict[str, str] = {}
+        headers: Dict[str, str] = {}
         parsed = urlsplit(self.gemini_ws_url)
         query = dict(parse_qsl(parsed.query, keep_blank_values=True))
 

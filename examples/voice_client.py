@@ -8,7 +8,7 @@ import json
 import os
 import unicodedata
 from contextlib import suppress
-from typing import Any
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 from websockets.asyncio.client import ClientConnection, connect
@@ -94,7 +94,7 @@ async def stop_process(process: asyncio.subprocess.Process) -> None:
 
 class LiveAudioPlayer:
     def __init__(self) -> None:
-        self.process: asyncio.subprocess.Process | None = None
+        self.process: Optional[asyncio.subprocess.Process] = None
 
     async def start(self) -> None:
         self.process = await asyncio.create_subprocess_exec(
@@ -177,7 +177,7 @@ async def send_microphone(
     await websocket.send(json.dumps({"realtimeInput": {"audioStreamEnd": True}}))
 
 
-def transcription(message: dict[str, Any], field: str) -> str | None:
+def transcription(message: Dict[str, Any], field: str) -> Optional[str]:
     return message.get("serverContent", {}).get(field, {}).get("text")
 
 
@@ -239,7 +239,7 @@ async def receive_gemini(
 
 
 async def main() -> None:
-    microphone: asyncio.subprocess.Process | None = None
+    microphone: Optional[asyncio.subprocess.Process] = None
     player = LiveAudioPlayer()
 
     orbit_token = os.environ.get("ORBIT_USER_TOKEN")

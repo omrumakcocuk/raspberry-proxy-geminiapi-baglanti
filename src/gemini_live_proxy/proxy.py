@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -16,7 +16,7 @@ from .subscription import SubscriptionServiceUnavailable, verify_subscription
 logger = logging.getLogger(__name__)
 
 
-def _client_token(client: WebSocket) -> str | None:
+def _client_token(client: WebSocket) -> Optional[str]:
     authorization = client.headers.get("authorization", "")
     scheme, _, value = authorization.partition(" ")
     if scheme.lower() == "bearer" and value.strip():

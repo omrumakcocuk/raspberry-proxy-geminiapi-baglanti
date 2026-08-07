@@ -20,7 +20,7 @@ ekler; anahtarlı URL ve mesaj içerikleri loglanmaz.
 
 ## Gereksinimler
 
-- Python 3.11 veya üzeri
+- Python 3.8 veya üzeri (Python 3.8.10 desteklenir)
 - Google AI Studio'dan alınmış bir Gemini API anahtarı
 
 ## Kurulum

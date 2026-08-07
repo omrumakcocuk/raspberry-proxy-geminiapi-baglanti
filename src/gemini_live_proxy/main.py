@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Dict, Optional
 
 from fastapi import FastAPI, WebSocket
 
@@ -8,7 +9,7 @@ from .config import Settings
 from .proxy import bridge
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Optional[Settings] = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     app = FastAPI(
         title="Gemini Live WebSocket Proxy",
@@ -26,7 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
     @app.get("/health")
-    async def health() -> dict[str, object]:
+    async def health() -> Dict[str, object]:
         try:
             resolved_settings.validate()
             configured = True
