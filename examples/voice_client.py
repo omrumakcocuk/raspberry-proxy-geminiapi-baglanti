@@ -10,6 +10,7 @@ import unicodedata
 from contextlib import suppress
 from typing import Any, Dict, Optional
 
+import pyaudio
 from dotenv import load_dotenv
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed
@@ -22,7 +23,10 @@ PROXY_URL = os.environ.get(
 )
 MODEL = "models/gemini-3.1-flash-live-preview"
 MIC_CHUNK_BYTES = 1280  # 40 ms of mono, signed 16-bit, 16 kHz PCM.
-AUDIO_OUTPUT_DEVICE = os.environ.get("AUDIO_OUTPUT_DEVICE", "pipewire")
+MIC_CHUNK_FRAMES = MIC_CHUNK_BYTES // 2  # 16-bit samples.
+AUDIO_OUTPUT_DEVICE = os.environ.get("AUDIO_OUTPUT_DEVICE", "")
+
+_pa = pyaudio.PyAudio()
 TURKISH_INSTRUCTION = (
     "Bu oturumun tek dili Türkçedir. Kullanıcının bütün ses girdilerini yalnızca "
     "Türkçe konuşma olarak dinle, Türkçe kelimeler olarak çözümle ve Türkçe yorumla. "
@@ -63,104 +67,95 @@ def setup_message() -> str:
     )
 
 
-async def start_microphone() -> asyncio.subprocess.Process:
-    return await asyncio.create_subprocess_exec(
-        "arecord",
-        "-q",
-        "-t",
-        "raw",
-        "-f",
-        "S16_LE",
-        "-c",
-        "1",
-        "-r",
-        "16000",
-        "--buffer-time=100000",
-        "--period-time=20000",
-        stdout=asyncio.subprocess.PIPE,
+async def start_microphone() -> pyaudio.Stream:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: _pa.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=MIC_CHUNK_FRAMES,
+        ),
     )
 
 
-async def stop_process(process: asyncio.subprocess.Process) -> None:
-    if process.returncode is None:
-        with suppress(ProcessLookupError):
-            process.terminate()
-        try:
-            await asyncio.wait_for(process.wait(), timeout=2)
-        except TimeoutError:
-            with suppress(ProcessLookupError):
-                process.kill()
-    if process.returncode is None:
-        await process.wait()
+async def stop_microphone(stream: pyaudio.Stream) -> None:
+    loop = asyncio.get_running_loop()
+
+    def _close() -> None:
+        with suppress(OSError):
+            stream.stop_stream()
+        stream.close()
+
+    await loop.run_in_executor(None, _close)
 
 
 class LiveAudioPlayer:
     def __init__(self) -> None:
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.stream: Optional[pyaudio.Stream] = None
 
     async def start(self) -> None:
-        self.process = await asyncio.create_subprocess_exec(
-            "aplay",
-            "-D",
-            AUDIO_OUTPUT_DEVICE,
-            "-q",
-            "-t",
-            "raw",
-            "-f",
-            "S16_LE",
-            "-c",
-            "1",
-            "-r",
-            "24000",
-            "--buffer-time=100000",
-            "--period-time=20000",
-            stdin=asyncio.subprocess.PIPE,
-        )
-        await asyncio.sleep(0.01)
-        if self.process.returncode is not None:
-            code = self.process.returncode
-            self.process = None
-            raise RuntimeError(
-                f"Ses cihazı açılamadı: {AUDIO_OUTPUT_DEVICE!r}, aplay code={code}"
+        loop = asyncio.get_running_loop()
+        try:
+            self.stream = await loop.run_in_executor(
+                None,
+                lambda: _pa.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=24000,
+                    output=True,
+                ),
             )
+        except OSError as exc:
+            raise RuntimeError(
+                f"Ses cihazı açılamadı: {AUDIO_OUTPUT_DEVICE!r}"
+            ) from exc
 
     async def write(self, audio: bytes) -> None:
-        if self.process is None or self.process.returncode is not None:
+        if self.stream is None or not self.stream.is_active():
             await self.start()
-        assert self.process is not None
-        assert self.process.stdin is not None
+        assert self.stream is not None
+        loop = asyncio.get_running_loop()
         try:
-            self.process.stdin.write(audio)
-            await self.process.stdin.drain()
-        except (BrokenPipeError, ConnectionResetError) as exc:
+            await loop.run_in_executor(None, self.stream.write, audio)
+        except OSError as exc:
             raise RuntimeError(
                 f"Ses cihazına yazılamadı: {AUDIO_OUTPUT_DEVICE!r}"
             ) from exc
 
     async def interrupt(self) -> None:
         """Drop queued output immediately when the user interrupts Gemini."""
-        if self.process is not None:
-            await stop_process(self.process)
-            self.process = None
+        if self.stream is not None:
+            await self.close()
 
     async def close(self) -> None:
-        if self.process is None:
+        if self.stream is None:
             return
-        if self.process.stdin is not None:
-            self.process.stdin.close()
-            with suppress(BrokenPipeError, ConnectionResetError):
-                await self.process.stdin.wait_closed()
-        await self.process.wait()
-        self.process = None
+        stream = self.stream
+        self.stream = None
+        loop = asyncio.get_running_loop()
+
+        def _close() -> None:
+            with suppress(OSError):
+                stream.stop_stream()
+            stream.close()
+
+        await loop.run_in_executor(None, _close)
 
 
 async def send_microphone(
     websocket: ClientConnection,
-    microphone: asyncio.subprocess.Process,
+    microphone: pyaudio.Stream,
     microphone_enabled: asyncio.Event,
 ) -> None:
-    assert microphone.stdout is not None
-    while chunk := await microphone.stdout.read(MIC_CHUNK_BYTES):
+    loop = asyncio.get_running_loop()
+    while microphone.is_active():
+        chunk = await loop.run_in_executor(
+            None,
+            lambda: microphone.read(MIC_CHUNK_FRAMES, exception_on_overflow=False),
+        )
         if not microphone_enabled.is_set():
             continue
         await websocket.send(
@@ -241,7 +236,7 @@ async def receive_gemini(
 
 
 async def main() -> None:
-    microphone: Optional[asyncio.subprocess.Process] = None
+    microphone: Optional[pyaudio.Stream] = None
     player = LiveAudioPlayer()
 
     orbit_token = os.environ.get("ORBIT_USER_TOKEN")
@@ -284,7 +279,7 @@ async def main() -> None:
             receiver.cancel()
             await asyncio.gather(sender, receiver, return_exceptions=True)
             if microphone is not None:
-                await stop_process(microphone)
+                await stop_microphone(microphone)
             await player.close()
 
 
@@ -295,3 +290,5 @@ if __name__ == "__main__":
         print("\nBağlantı kapatıldı.")
     except ConnectionClosed as exc:
         print(f"\nBağlantı kapandı: code={exc.code} reason={exc.reason!r}")
+    finally:
+        _pa.terminate()
